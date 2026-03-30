@@ -1,6 +1,6 @@
 # Centralized Secret Management System using AWS Secrets Manager
 
-## 📌 Project Overview
+## ➤ Project Overview
 
 This project demonstrates how to securely manage database credentials in a cloud environment by eliminating hardcoded secrets and implementing centralized secret storage using AWS services.
 
@@ -8,7 +8,7 @@ Initially, the application uses hardcoded database credentials (insecure approac
 
 ---
 
-## 🎯 Objectives
+## ➤ Objectives
 
 * Eliminate hardcoded credentials from application code
 * Implement centralized secret storage using AWS Secrets Manager
@@ -18,7 +18,12 @@ Initially, the application uses hardcoded database credentials (insecure approac
 
 ---
 
-## 🏗️ Architecture Overview
+## ➤ Architecture Diagram
+![Architecture Diagram](./pictures/architecture.png)
+
+--- 
+
+## ➤ Architecture Overview
 
 * **EC2** → Hosts Flask application
 * **RDS (MySQL)** → Database service
@@ -28,7 +33,7 @@ Initially, the application uses hardcoded database credentials (insecure approac
 
 ---
 
-## ⚙️ Technologies Used
+## ➤ Technologies Used
 
 * AWS EC2
 * AWS RDS (MySQL)
@@ -39,7 +44,7 @@ Initially, the application uses hardcoded database credentials (insecure approac
 
 ---
 
-# 🚀 Implementation Steps
+# ➤ Implementation Steps
 
 ---
 
@@ -203,7 +208,7 @@ Access:
 http://<EC2-IP>:5000
 ```
 
-👉 This demonstrates the **security risk of hardcoded credentials**
+This demonstrates the **security risk of hardcoded credentials**
 
 ![insecure-1](./pictures/insecure-1.png)
 ![insecure-2](./pictures/insecure-2.png)
@@ -372,7 +377,7 @@ Application works without hardcoded credentials
 
 ---
 
-## 🔹 Step 10: Test Secret Rotation (Final Validation)
+## 🔹 Step 9: Test Secret Rotation (Final Validation)
 
 1. Go to Secrets Manager
 2. Click:
@@ -391,7 +396,7 @@ Application works without hardcoded credentials
 
 * Application still works
   ![verify-app](./pictures/verify-app-3.png)
-  
+
 * Connect to RDS and Check the Data
   ![rds-data](./pictures/rds-data.png)
 
@@ -402,7 +407,7 @@ This proves:
 
 ---
 
-### Security Validation
+## ➤ Security Validation
 ✔ No Access Keys Configured on Server
 
 To ensure secure access, the EC2 instance was configured to use an IAM role instead of static AWS credentials.
@@ -424,7 +429,7 @@ Conclusion
 
 ---
 
-# Why Secret Rotation Matters
+## ➤ Why Secret Rotation Matters
 
 * Prevents long-term credential exposure
 * Reduces risk of security breaches
@@ -433,7 +438,7 @@ Conclusion
 
 ---
 
-#  Security Improvements
+## ➤ Security Improvements
 
 | Before ❌              | After ✅           |
 | --------------------- | ----------------- |
@@ -445,7 +450,7 @@ Conclusion
 
 ---
 
-# Final Outcome
+## ➤ Final Outcome
 
 * Successfully implemented centralized secret management
 * Eliminated hardcoded credentials
@@ -455,7 +460,7 @@ Conclusion
 
 ---
 
-# Key Learnings
+## ➤ Key Learnings
 
 * Importance of secure secret management
 * IAM role-based access control
