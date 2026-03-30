@@ -1,4 +1,4 @@
-# 🔐 Centralized Secret Management System using AWS Secrets Manager
+# Centralized Secret Management System using AWS Secrets Manager
 
 ## 📌 Project Overview
 
@@ -54,22 +54,31 @@ Initially, the application uses hardcoded database credentials (insecure approac
 
    * DB name: `mydb`
    * Username: `admin`
-   * Password: `TempPass123`
+   * Password: `Temppass123`
 4. Enable **Public Access (for testing)**
 5. Create database
 
-### 🔐 Security Group Configuration
+    ![rds](./pictures/rds.png)
+
+###  Security Group Configuration
 
 * Allow inbound rule:
 
-  * Type: MySQL (3306)
-  * Source: EC2 security group
+  * MySQL (3306)
+  * HTTP (80)
+  * SSH (22)
+  * Python (5000)
+
+![sg](./pictures/SG.png)
 
 ---
 
-## 🔹 Step 2: Connect to RDS & Create Table
+## 🔹 Step 2: Launch EC2 and Connect to RDS & Create Table
 
-Connect from EC2:
+1. Launch EC2 instance (Ubuntu)
+    ![ec2](./pictures/ec2.png)
+
+2. Connect from EC2:
 
 ```bash
 mysql -h <RDS-ENDPOINT> -u admin -p
@@ -87,12 +96,13 @@ CREATE TABLE users (
 );
 ```
 
+![set rds](./pictures/setup-rds.png)
+
 ---
 
 ## 🔹 Step 3: EC2 Setup & Application Deployment
 
-1. Launch EC2 instance (Ubuntu)
-2. Install dependencies:
+1. Install dependencies:
 
 ```bash
 sudo apt update
@@ -118,13 +128,61 @@ pip install flask pymysql boto3
 
 A Flask application is created with hardcoded database credentials.
 
-### Example:
 
-```python
-DB_HOST = "<RDS-ENDPOINT>"
+## app.py (hardcoded)
+```
+from flask import Flask, request
+import pymysql
+
+app = Flask(__name__)
+
+# HARDCODED CREDENTIALS (INSECURE - for demo)
+DB_HOST = "mydb.cb8uumumcjj4.us-west-1.rds.amazonaws.com"
 DB_USER = "admin"
 DB_PASS = "TempPass123"
 DB_NAME = "mydb"
+
+def connect_db():
+    return pymysql.connect(
+        host=DB_HOST,
+        user=DB_USER,
+        password=DB_PASS,
+        database=DB_NAME
+    )
+
+@app.route('/')
+def home():
+    return '''
+    <h2>Enter Name</h2>
+    <form action="/add" method="post">
+        <input type="text" name="username" required>
+        <input type="submit" value="Submit">
+    </form>
+    '''
+
+@app.route('/add', methods=['POST'])
+def add_user():
+    name = request.form['username']
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute("INSERT INTO users (name) VALUES (%s)", (name,))
+    conn.commit()
+
+    cursor.execute("SELECT * FROM users")
+    users = cursor.fetchall()
+
+    conn.close()
+
+    output = "<h2>Users in DB:</h2>"
+    for user in users:
+        output += f"<p>{user}</p>"
+
+    return output
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
 ```
 
 ### Features:
@@ -147,6 +205,9 @@ http://<EC2-IP>:5000
 
 👉 This demonstrates the **security risk of hardcoded credentials**
 
+![insecure-1](./pictures/insecure-1.png)
+![insecure-2](./pictures/insecure-2.png)
+
 ---
 
 ## 🔹 Step 5: Store Credentials in AWS Secrets Manager
@@ -158,77 +219,86 @@ http://<EC2-IP>:5000
    * Credentials for RDS database
 4. Enter:
 
-```json
-{
-  "username": "admin",
-  "password": "TempPass123",
-  "host": "<RDS-ENDPOINT>",
-  "port": 3306
-}
-```
+![store-secrets](./pictures/store-secrets.png)
+- username: "admin"
+- password: "Temppass123"
 
-5. Secret name:
+5. Select RDS
+![Select RDS](./pictures/select-rds.png)
 
-```
-mydb_secret
-```
+
+6. Secret name:
+
+    ```
+    mydb_secret
+    ```
+
+7. Enable Automatic Rotation 
+
+    * Enable **Automatic rotation**
+    * Use default Lambda function
+    * Select rotation interval (e.g., 4 hour)
+
+    AWS creates a Lambda function automatically to:
+
+    * Rotate DB password
+    * Update RDS
+    * Update secret
+
+    ![secrets-rotation](./pictures/secrets-rotation.png)
+
+![secret-created](./pictures/secret-created.png)
 
 ---
 
-## 🔹 Step 6: Enable Automatic Rotation 🔄
-
-* Enable **Automatic rotation**
-* Use default Lambda function
-* Select rotation interval (e.g., 30 days or demo: 1 hour)
-
-👉 AWS creates a Lambda function automatically to:
-
-* Rotate DB password
-* Update RDS
-* Update secret
-
----
-
-## 🔹 Step 7: IAM Role Configuration
+## 🔹 Step 6: IAM Role Configuration
 
 1. Go to IAM → Create Role
 2. Trusted entity → EC2
 3. Attach policy:
 
-   * `SecretsManagerReadWrite` (or custom least privilege)
+   * `SecretsManagerReadWrite`
+   ![iam-role](./pictures/iam-role.png)
+
 4. Name role:
 
-```
-EC2-SecretsManager-Role
-```
+    ```
+    EC2-SecretsManager-Role
+    ```
 
 5. Attach role to EC2 instance
+    ![attach-iam-role-to-ec2](./pictures/attach-iam-role-to-ec2.png)
 
-👉 This removes need for access keys
+This removes need for access keys
 
 ---
 
-## 🔹 Step 8: Secure Application (Using SDK 🔐)
+## 🔹 Step 7: Secure Application (Using SDK)
 
 Modify application to fetch secrets using **boto3 SDK**:
 
-```python
+### Secure app.py
+```
+from flask import Flask, request
+import pymysql
 import boto3
 import json
 
+app = Flask(__name__)
+
+# Fetch secret from AWS Secrets Manager
 def get_secret():
     client = boto3.client("secretsmanager", region_name="us-west-1")
 
     response = client.get_secret_value(
-        SecretId="mydb_secret"
+        SecretId="rds-db-secret"
     )
 
-    return json.loads(response["SecretString"])
-```
+    secret = json.loads(response["SecretString"])
+    return secret
 
-Update DB connection:
 
-```python
+#  Connect to DB using secret
 def connect_db():
     creds = get_secret()
 
@@ -236,8 +306,49 @@ def connect_db():
         host=creds["host"],
         user=creds["username"],
         password=creds["password"],
-        database="mydb"
+        database=creds["dbname"]
     )
+
+
+@app.route('/')
+def home():
+    return '''
+    <h2>Enter Name</h2>
+    <form action="/add" method="post">
+        <input type="text" name="username" required>
+        <input type="submit" value="Submit">
+    </form>
+    '''
+
+
+@app.route('/add', methods=['POST'])
+def add_user():
+    name = request.form['username']
+
+    # optional validation
+    if not name.strip():
+        return "Name cannot be empty"
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute("INSERT INTO users (name) VALUES (%s)", (name,))
+    conn.commit()
+
+    cursor.execute("SELECT * FROM users")
+    users = cursor.fetchall()
+
+    conn.close()
+
+    output = "<h2>Users in DB:</h2>"
+    for user in users:
+        output += f"<p>{user}</p>"
+
+    return output
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
 ```
 
 ### Key Improvements:
@@ -248,38 +359,72 @@ def connect_db():
 
 ---
 
-## 🔹 Step 9: Test Secure Application
+## 🔹 Step 8: Test Secure Application
 
 * Run app
 * Insert data
 * Verify DB entries
 
-👉 Application works without hardcoded credentials
+    ![verify-app-1](./pictures/verify-app-1.png)
+    ![verify-app-2](./pictures/verify-app-2.png)
+
+Application works without hardcoded credentials
 
 ---
 
-## 🔹 Step 10: Test Secret Rotation (Final Validation 🔥)
+## 🔹 Step 10: Test Secret Rotation (Final Validation)
 
 1. Go to Secrets Manager
 2. Click:
 
    * **Rotate secret immediately**
 3. Wait for completion
+   ![test-rotation](./pictures/test-rotation.png)
 
 ### Verify:
 
-* Password updated in RDS
-* Secret updated
-* Application still works
+* Password updated in Secret
+    - Before 
+        ![Before-pass](./pictures/before-pass.png)
+    - After
+        ![pass-updated](./pictures/pass-updated.png)
 
-👉 This proves:
-✔ Dynamic secret retrieval
-✔ Zero downtime
-✔ Secure architecture
+* Application still works
+  ![verify-app](./pictures/verify-app-3.png)
+  
+* Connect to RDS and Check the Data
+  ![rds-data](./pictures/rds-data.png)
+
+This proves:
+- ✔ Dynamic secret retrieval
+- ✔ Zero downtime
+- ✔ Secure architecture
 
 ---
 
-# 🔐 Why Secret Rotation Matters
+### Security Validation
+✔ No Access Keys Configured on Server
+
+To ensure secure access, the EC2 instance was configured to use an IAM role instead of static AWS credentials.
+- Checked AWS CLI configuration:
+    ```
+    aws configure list
+    ```
+![aws-cli](./pictures/aws-cli.png)
+
+Interpretation
+- Credentials are sourced from IAM Role
+- No static access keys are configured
+- AWS uses temporary credentials via Instance Metadata Service (IMDS)
+
+Conclusion
+<br>The application securely accesses AWS services using IAM role-based authentication without storing any access keys on the server, following AWS security best practices.
+
+
+
+---
+
+# Why Secret Rotation Matters
 
 * Prevents long-term credential exposure
 * Reduces risk of security breaches
@@ -288,7 +433,7 @@ def connect_db():
 
 ---
 
-# 🚀 Security Improvements
+#  Security Improvements
 
 | Before ❌              | After ✅           |
 | --------------------- | ----------------- |
@@ -300,7 +445,7 @@ def connect_db():
 
 ---
 
-# ✅ Final Outcome
+# Final Outcome
 
 * Successfully implemented centralized secret management
 * Eliminated hardcoded credentials
@@ -310,17 +455,7 @@ def connect_db():
 
 ---
 
-# 📸 Suggested Screenshots
-
-* RDS configuration
-* Secrets Manager secret
-* IAM role
-* Flask application UI
-* Rotation success
-
----
-
-# 🧠 Key Learnings
+# Key Learnings
 
 * Importance of secure secret management
 * IAM role-based access control
