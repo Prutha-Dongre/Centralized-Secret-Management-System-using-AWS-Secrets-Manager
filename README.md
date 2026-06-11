@@ -311,7 +311,7 @@ def connect_db():
         host=creds["host"],
         user=creds["username"],
         password=creds["password"],
-        database=creds["dbname"]
+        database="mydb"
     )
 
 
